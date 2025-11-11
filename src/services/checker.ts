@@ -18,15 +18,15 @@ function normalizePriceString(raw: string) {
     return num;
 }
 
-function normalizePriceString(str: string): number | null {
-    if (!str) return null;
-    // Supprime les espaces et transforme les virgules en points
-    const cleaned = str.replace(/\s/g, '').replace(',', '.');
-    const price = parseFloat(cleaned);
-    return isNaN(price) ? null : price;
-}
 
 function parseAmazonPrice(html: string): number | null {
+    function normalizePriceString(str: string): number | null {
+        if (!str) return null;
+        // Supprime les espaces et transforme les virgules en points
+        const cleaned = str.replace(/\s/g, '').replace(',', '.');
+        const price = parseFloat(cleaned);
+        return isNaN(price) ? null : price;
+    }
     const patterns = [
         // 1) a-price-whole + a-price-fraction
         /<span[^>]*class=["']?a-price-whole["']?[^>]*>([\d\s]+)<span[^>]*class=["']?a-price-decimal["']?[^>]*>[\.,]<\/span><\/span>\s*<span[^>]*class=["']?a-price-fraction["']?[^>]*>(\d+)<\/span>/i,
