@@ -1,0 +1,7 @@
+-- Migration number: 0002    2025-11-11T00:00:00.000Z
+CREATE TABLE IF NOT EXISTS products (
+    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    url TEXT NOT NULL,
+    price REAL,
+    last_check DATETIME
+);

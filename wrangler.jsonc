@@ -12,5 +12,10 @@
 			"database_name": "price-tracker-cloudflare",
 			"database_id": "0499a809-6e61-4c82-918e-f6355f05e667"
 		}
-	]
+	],
+	"triggers": {
+		"crons": [
+			"*/5 * * * *"
+		]
+	}
 }

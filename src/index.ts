@@ -1,6 +1,9 @@
 import { ApiException, fromHono } from "chanfana";
 import { Hono } from "hono";
 import { tasksRouter } from "./endpoints/tasks/router";
+import { productsRouter } from "./endpoints/products/router";
+import { CheckProducts } from "./endpoints/products/check";
+import { runCheck } from "./services/checker";
 import { ContentfulStatusCode } from "hono/utils/http-status";
 import { DummyEndpoint } from "./endpoints/dummyEndpoint";
 
@@ -43,8 +46,20 @@ const openapi = fromHono(app, {
 // Register Tasks Sub router
 openapi.route("/tasks", tasksRouter);
 
+// Register Products Sub router
+openapi.route("/products", productsRouter);
+
+// Register check endpoint (root path)
+openapi.get("/check", CheckProducts);
+
 // Register other endpoints
 openapi.post("/dummy/:slug", DummyEndpoint);
 
 // Export the Hono app
 export default app;
+
+// Scheduled handler (cron) will call runCheck. Cloudflare scheduled handler signature: (controller, env)
+export async function scheduled(controller: any, env: Env) {
+	// runCheck will update DB and send Telegram notifications where relevant
+	controller.waitUntil(runCheck(env));
+}
