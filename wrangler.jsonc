@@ -1,0 +1,16 @@
+{
+	"compatibility_date": "2025-10-08",
+	"main": "src/index.ts",
+	"name": "price-tracker-cloudflare",
+	"upload_source_maps": true,
+	"observability": {
+		"enabled": true
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "price-tracker-cloudflare",
+			"database_id": "0499a809-6e61-4c82-918e-f6355f05e667"
+		}
+	]
+}
