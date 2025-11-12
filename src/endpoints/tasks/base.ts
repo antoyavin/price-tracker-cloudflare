@@ -13,11 +13,12 @@ export const TaskModel = {
 	tableName: "tasks",
 	primaryKeys: ["id"],
 	schema: task,
-	serializer: (obj: Record<string, string | number | boolean>) => {
+	// serializer must accept a generic object shape to satisfy the endpoint Meta type
+	serializer: (obj: any) => {
 		return {
 			...obj,
-			completed: Boolean(obj.completed),
-		};
+			completed: Boolean((obj as any).completed),
+		} as object;
 	},
 	serializerObject: task,
 };

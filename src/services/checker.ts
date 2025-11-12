@@ -45,7 +45,8 @@ export function getRealisticHeaders(url: string): Record<string, string> {
 
     const num = parseFloat(s);
     if (Number.isNaN(num)) return null;
-    return num;
+    const rounded = Math.round(num * 100) / 100;
+    return rounded;
 }
 
 function parseAmazonPrice(html: string): number | null {
@@ -54,18 +55,7 @@ function parseAmazonPrice(html: string): number | null {
     // Debug: log HTML length
     console.log(`[parseAmazonPrice] HTML length: ${html.length}`);
 
-    // 1) Try a-price-whole + a-price-fraction combo (common on Amazon)
-    const wholeFraction = $("span.a-price-whole").first().text();
-    const fractionSpan = $("span.a-price-fraction").first().text();
-    if (wholeFraction && fractionSpan) {
-        const price = normalizePriceString(`${wholeFraction}.${fractionSpan}`);
-        if (price !== null) {
-            console.log(`[parseAmazonPrice] Found price via a-price-whole/fraction: ${price}`);
-            return price;
-        }
-    }
-
-    // 2) Try aok-offscreen (hidden text with full price)
+    // 1) Try aok-offscreen FIRST (hidden text with full price - most reliable)
     const offscreen = $("span.aok-offscreen").first().text();
     if (offscreen) {
         const price = normalizePriceString(offscreen);
@@ -75,7 +65,27 @@ function parseAmazonPrice(html: string): number | null {
         }
     }
 
-    // 3) Try priceblock IDs (older Amazon pages)
+    // 2) Try a-price-whole + a-price-fraction combo (common on Amazon)
+    const wholeFraction = $("span.a-price-whole").first().text();
+    const fractionSpan = $("span.a-price-fraction").first().text();
+    if (wholeFraction && fractionSpan) {
+        const price = normalizePriceString(`${wholeFraction},${fractionSpan}`);
+        if (price !== null) {
+            console.log(`[parseAmazonPrice] Found price via a-price-whole/fraction: ${price}`);
+            return price;
+        }
+    }
+
+    // 3) Try a-price-whole alone (might have full price)
+    if (wholeFraction) {
+        const price = normalizePriceString(wholeFraction);
+        if (price !== null) {
+            console.log(`[parseAmazonPrice] Found price via a-price-whole alone: ${price}`);
+            return price;
+        }
+    }
+
+    // 4) Try priceblock IDs (older Amazon pages)
     const priceblock = $("#priceblock_ourprice, #priceblock_dealprice").first().text();
     if (priceblock) {
         const price = normalizePriceString(priceblock);
@@ -85,7 +95,7 @@ function parseAmazonPrice(html: string): number | null {
         }
     }
 
-    // 4) Try a-price (generic price span)
+    // 5) Try a-price (generic price span)
     const aPrice = $("span.a-price").first().text();
     if (aPrice) {
         const price = normalizePriceString(aPrice);
@@ -95,7 +105,7 @@ function parseAmazonPrice(html: string): number | null {
         }
     }
 
-    // 5) Try meta og:price:amount JSON-LD
+    // 6) Try meta og:price:amount JSON-LD
     const metaPrice = $('meta[property="og:price:amount"]').attr("content");
     if (metaPrice) {
         const price = normalizePriceString(metaPrice);
@@ -105,20 +115,22 @@ function parseAmazonPrice(html: string): number | null {
         }
     }
 
-    // 6) Try data-a-color attribute on a-price spans (sometimes used)
+    // 7) Try data-a-color attribute on a-price spans (sometimes used)
+    let found = null as number | null;
     $("span[data-a-price-whole]").each((i, elem) => {
         const wholePrice = $(elem).attr("data-a-price-whole");
         if (wholePrice) {
             const price = normalizePriceString(wholePrice);
             if (price !== null) {
-                console.log(`[parseAmazonPrice] Found price via data-a-price-whole: ${price}`);
+                found = price;
                 return false; // break
             }
         }
     });
+    if (found !== null) return found;
 
-    // 7) Try to find any text with Euro symbol and price
-    const euroMatch = html.match(/([0-9\s,\.]+)\s*€/i);
+    // 8) Try to find any text with Euro symbol and price
+    const euroMatch = html.match(/([0-9\\s,\\.]+)\\s*€/i);
     if (euroMatch && euroMatch[1]) {
         const price = normalizePriceString(euroMatch[1]);
         if (price !== null) {
@@ -127,8 +139,8 @@ function parseAmazonPrice(html: string): number | null {
         }
     }
 
-    // 8) Last resort: look for currency symbol followed by numbers
-    const currencyMatch = html.match(/(€|\$|USD|EUR)\s*([\d.,]+)/i);
+    // 9) Last resort: look for currency symbol followed by numbers
+    const currencyMatch = html.match(/(€|\\$|USD|EUR)\\s*([\\d.,]+)/i);
     if (currencyMatch && currencyMatch[2]) {
         const price = normalizePriceString(currencyMatch[2]);
         if (price !== null) {
@@ -140,6 +152,8 @@ function parseAmazonPrice(html: string): number | null {
     console.warn(`[parseAmazonPrice] No price found in HTML`);
     return null;
 }
+
+
 
 function sendTelegram(env: Env, text: string) {
     const token = (env as any).TELEGRAM_TOKEN;
