@@ -1,4 +1,5 @@
 import { AppContext } from "../../types";
+import { getRealisticHeaders } from "../../services/checker";
 
 export const DebugFetch = async (c: AppContext) => {
     const url = c.req.query("url");
@@ -7,25 +8,11 @@ export const DebugFetch = async (c: AppContext) => {
     }
 
     try {
-        const REALISTIC_HEADERS = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.9",
-            "Accept-Encoding": "gzip, deflate",
-            "DNT": "1",
-            "Connection": "keep-alive",
-            "Upgrade-Insecure-Requests": "1",
-            "Sec-Fetch-Dest": "document",
-            "Sec-Fetch-Mode": "navigate",
-            "Sec-Fetch-Site": "none",
-            "Cache-Control": "max-age=0",
-        };
-
-        const r = await fetch(String(url), { headers: REALISTIC_HEADERS });
+        const r = await fetch(String(url), { headers: getRealisticHeaders(url) });
         const html = await r.text();
 
-        // Extract first 2000 chars for inspection
-        const htmlSnippet = html.substring(0, 2000);
+        // Extract first 3000 chars for inspection
+        const htmlSnippet = html.substring(0, 3000);
 
         // Look for price-related patterns
         const pricePatterns = [
@@ -42,11 +29,15 @@ export const DebugFetch = async (c: AppContext) => {
             foundPatterns[pattern.name] = m ? m[1] : null;
         }
 
+        // Check if it's a captcha page
+        const isCaptcha = html.includes("To discuss automated access to Amazon") || html.includes("captcha");
+
         return c.json({
             success: true,
             url,
             status: r.status,
             htmlLength: html.length,
+            isCaptcha,
             htmlSnippet,
             foundPatterns,
         });
