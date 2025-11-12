@@ -1,4 +1,21 @@
-function normalizePriceString(raw: string) {
+import { load } from "cheerio";
+
+const REALISTIC_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate",
+    "DNT": "1",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Cache-Control": "max-age=0",
+};
+
+function normalizePriceString(raw: string): number | null {
+    if (!raw) return null;
     // Remove non-numeric except dot and comma
     let s = raw.replace(/[^0-9.,]/g, "").trim();
     if (!s) return null;
@@ -9,8 +26,6 @@ function normalizePriceString(raw: string) {
         s = s.replace(/,/g, '.');
     } else if (s.indexOf(',') !== -1 && s.indexOf('.') === -1) {
         s = s.replace(/,/g, '.');
-    } else {
-        // else keep as-is
     }
 
     const num = parseFloat(s);
@@ -18,56 +33,56 @@ function normalizePriceString(raw: string) {
     return num;
 }
 
-
 function parseAmazonPrice(html: string): number | null {
-    function normalizePriceString(str: string): number | null {
-        if (!str) return null;
-        // Supprime les espaces et transforme les virgules en points
-        const cleaned = str.replace(/\s/g, '').replace(',', '.');
-        const price = parseFloat(cleaned);
-        return isNaN(price) ? null : price;
-    }
-    const patterns = [
-        // 1) a-price-whole + a-price-fraction
-        /<span[^>]*class=["']?a-price-whole["']?[^>]*>([\d\s]+)<span[^>]*class=["']?a-price-decimal["']?[^>]*>[\.,]<\/span><\/span>\s*<span[^>]*class=["']?a-price-fraction["']?[^>]*>(\d+)<\/span>/i,
+    const $ = load(html);
 
-        // 2) fallback aok-offscreen
-        /<span[^>]+class=["']?aok-offscreen["']?[^>]*>\s*([\d.,]+)\s*€/i,
-
-        // 3) priceblock ids
-        /id=["']priceblock_(?:ourprice|dealprice)["'][^>]*>\s*([\d.,]+)\s*(?:€|EUR|\$|US\$)?</i,
-
-        // 4) JSON inline
-        /"priceToPay"\s*:\s*\{[^}]*"amount"\s*:\s*"([\d.,]+)"/i,
-        /"currentPrice"\s*:\s*\{[^}]*"amount"\s*:\s*"([\d.,]+)"/i,
-
-        // 5) dernier recours
-        /([\d.,]+)\s*(?:€|EUR|\$|US\$)/i,
-    ];
-
-    for (const pat of patterns) {
-        const m = html.match(pat);
-        if (m) {
-            // Si le pattern a deux groupes (whole + fraction)
-            if (m.length >= 3 && m[2]) {
-                return normalizePriceString(`${m[1]}.${m[2]}`);
-            }
-            // Sinon on prend le premier groupe
-            if (m[1]) {
-                return normalizePriceString(m[1]);
-            }
-        }
+    // 1) Try a-price-whole + a-price-fraction combo (common on Amazon)
+    const wholeFraction = $("span.a-price-whole").first().text();
+    const fractionSpan = $("span.a-price-fraction").first().text();
+    if (wholeFraction && fractionSpan) {
+        const price = normalizePriceString(`${wholeFraction}.${fractionSpan}`);
+        if (price !== null) return price;
     }
 
-    // fallback meta og:price:amount
-    const meta = html.match(/<meta\s+property="og:price:amount"\s+content="([0-9.,]+)"/i);
-    if (meta && meta[1]) return normalizePriceString(meta[1]);
+    // 2) Try aok-offscreen (hidden text with full price)
+    const offscreen = $("span.aok-offscreen").first().text();
+    if (offscreen) {
+        const price = normalizePriceString(offscreen);
+        if (price !== null) return price;
+    }
+
+    // 3) Try priceblock IDs
+    const priceblock = $("#priceblock_ourprice, #priceblock_dealprice").first().text();
+    if (priceblock) {
+        const price = normalizePriceString(priceblock);
+        if (price !== null) return price;
+    }
+
+    // 4) Try a-price (generic price span)
+    const aPrice = $("span.a-price").first().text();
+    if (aPrice) {
+        const price = normalizePriceString(aPrice);
+        if (price !== null) return price;
+    }
+
+    // 5) Try meta og:price:amount JSON-LD
+    const metaPrice = $('meta[property="og:price:amount"]').attr("content");
+    if (metaPrice) {
+        const price = normalizePriceString(metaPrice);
+        if (price !== null) return price;
+    }
+
+    // 6) Last resort: look for currency symbol followed by numbers
+    const currencyMatch = html.match(/(€|\$|USD|EUR)\s*([\d.,]+)/i);
+    if (currencyMatch && currencyMatch[2]) {
+        const price = normalizePriceString(currencyMatch[2]);
+        if (price !== null) return price;
+    }
 
     return null;
 }
 
-
-async function sendTelegram(env: Env, text: string) {
+function sendTelegram(env: Env, text: string) {
     const token = (env as any).TELEGRAM_TOKEN;
     const chatId = (env as any).TELEGRAM_CHAT_ID;
     if (!token || !chatId) {
@@ -79,12 +94,20 @@ async function sendTelegram(env: Env, text: string) {
     const body = { chat_id: chatId, text };
 
     try {
-        const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        const json = await res.json().catch(() => ({}));
-        return { sent: true, response: json };
+        return fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        })
+            .then((res) => res.json().catch(() => ({})))
+            .then((json) => ({ sent: true, response: json }))
+            .catch((err: any) => {
+                console.error('sendTelegram error', err);
+                return { sent: false, reason: String(err?.message ?? err) };
+            });
     } catch (err: any) {
         console.error('sendTelegram error', err);
-        return { sent: false, reason: String(err?.message ?? err) };
+        return Promise.resolve({ sent: false, reason: String(err?.message ?? err) });
     }
 }
 
@@ -100,7 +123,7 @@ export async function runCheck(env: Env) {
         const oldPrice = (p as any).price == null ? null : Number((p as any).price);
         let newPrice: number | null = null;
         try {
-            const r = await fetch(String(url), { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; price-tracker/1.0)' } });
+            const r = await fetch(String(url), { headers: REALISTIC_HEADERS });
             const html = await r.text();
             newPrice = parseAmazonPrice(html);
 

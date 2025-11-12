@@ -1,16 +1,13 @@
-import { AppContext } from "../../types";
+import { D1DeleteEndpoint } from "chanfana";
+import { HandleArgs } from "../../types";
+import { ProductModel } from "./base";
 
-export const ProductDelete = async (c: AppContext) => {
-  const id = c.req.param("id");
-  if (!id) return c.json({ success: false, error: "Missing id" }, 400);
-
-  try {
-    await c.env.DB.prepare("DELETE FROM products WHERE id = ?").bind(Number(id)).run();
-    return c.json({}, 204);
-  } catch (err: any) {
-    console.error("ProductDelete error", err);
-    return c.json({ success: false, error: String(err?.message ?? err) }, 500);
-  }
-};
+export class ProductDelete extends D1DeleteEndpoint<HandleArgs> {
+    _meta = {
+        model: ProductModel,
+        summary: "Delete a product",
+        description: "Remove a product from tracking by its ID",
+    };
+}
 
 export default ProductDelete;
