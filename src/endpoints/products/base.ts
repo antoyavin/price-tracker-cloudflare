@@ -3,8 +3,8 @@ import { z } from "zod";
 export const product = z.object({
     id: z.number().int(),
     url: z.string().url("Must be a valid URL").describe("Amazon product URL to track"),
-    price: z.number().nullable().optional().describe("Current price in product currency"),
-    last_check: z.string().datetime().nullable().optional().describe("Timestamp of last price check"),
+    price: z.number().nullish().describe("Current price in product currency"),
+    last_check: z.string().datetime().nullish().describe("Timestamp of last price check"),
 });
 
 export const ProductModel = {
