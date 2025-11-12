@@ -36,49 +36,93 @@ function normalizePriceString(raw: string): number | null {
 function parseAmazonPrice(html: string): number | null {
     const $ = load(html);
 
+    // Debug: log HTML length
+    console.log(`[parseAmazonPrice] HTML length: ${html.length}`);
+
     // 1) Try a-price-whole + a-price-fraction combo (common on Amazon)
     const wholeFraction = $("span.a-price-whole").first().text();
     const fractionSpan = $("span.a-price-fraction").first().text();
     if (wholeFraction && fractionSpan) {
         const price = normalizePriceString(`${wholeFraction}.${fractionSpan}`);
-        if (price !== null) return price;
+        if (price !== null) {
+            console.log(`[parseAmazonPrice] Found price via a-price-whole/fraction: ${price}`);
+            return price;
+        }
     }
 
     // 2) Try aok-offscreen (hidden text with full price)
     const offscreen = $("span.aok-offscreen").first().text();
     if (offscreen) {
         const price = normalizePriceString(offscreen);
-        if (price !== null) return price;
+        if (price !== null) {
+            console.log(`[parseAmazonPrice] Found price via aok-offscreen: ${price}`);
+            return price;
+        }
     }
 
-    // 3) Try priceblock IDs
+    // 3) Try priceblock IDs (older Amazon pages)
     const priceblock = $("#priceblock_ourprice, #priceblock_dealprice").first().text();
     if (priceblock) {
         const price = normalizePriceString(priceblock);
-        if (price !== null) return price;
+        if (price !== null) {
+            console.log(`[parseAmazonPrice] Found price via priceblock ID: ${price}`);
+            return price;
+        }
     }
 
     // 4) Try a-price (generic price span)
     const aPrice = $("span.a-price").first().text();
     if (aPrice) {
         const price = normalizePriceString(aPrice);
-        if (price !== null) return price;
+        if (price !== null) {
+            console.log(`[parseAmazonPrice] Found price via a-price span: ${price}`);
+            return price;
+        }
     }
 
     // 5) Try meta og:price:amount JSON-LD
     const metaPrice = $('meta[property="og:price:amount"]').attr("content");
     if (metaPrice) {
         const price = normalizePriceString(metaPrice);
-        if (price !== null) return price;
+        if (price !== null) {
+            console.log(`[parseAmazonPrice] Found price via og:price:amount: ${price}`);
+            return price;
+        }
     }
 
-    // 6) Last resort: look for currency symbol followed by numbers
+    // 6) Try data-a-color attribute on a-price spans (sometimes used)
+    $("span[data-a-price-whole]").each((i, elem) => {
+        const wholePrice = $(elem).attr("data-a-price-whole");
+        if (wholePrice) {
+            const price = normalizePriceString(wholePrice);
+            if (price !== null) {
+                console.log(`[parseAmazonPrice] Found price via data-a-price-whole: ${price}`);
+                return false; // break
+            }
+        }
+    });
+
+    // 7) Try to find any text with Euro symbol and price
+    const euroMatch = html.match(/([0-9\s,\.]+)\s*€/i);
+    if (euroMatch && euroMatch[1]) {
+        const price = normalizePriceString(euroMatch[1]);
+        if (price !== null) {
+            console.log(`[parseAmazonPrice] Found price via Euro regex: ${price}`);
+            return price;
+        }
+    }
+
+    // 8) Last resort: look for currency symbol followed by numbers
     const currencyMatch = html.match(/(€|\$|USD|EUR)\s*([\d.,]+)/i);
     if (currencyMatch && currencyMatch[2]) {
         const price = normalizePriceString(currencyMatch[2]);
-        if (price !== null) return price;
+        if (price !== null) {
+            console.log(`[parseAmazonPrice] Found price via currency regex: ${price}`);
+            return price;
+        }
     }
 
+    console.warn(`[parseAmazonPrice] No price found in HTML`);
     return null;
 }
 
@@ -125,9 +169,8 @@ export async function runCheck(env: Env) {
         try {
             const r = await fetch(String(url), { headers: REALISTIC_HEADERS });
             const html = await r.text();
-            newPrice = parseAmazonPrice(html);
-
-            if (newPrice === null) {
+            console.log(`[runCheck] Fetched ${url}, status: ${r.status}, HTML length: ${html.length}`);
+            newPrice = parseAmazonPrice(html); if (newPrice === null) {
                 // update last_check only
                 await env.DB.prepare('UPDATE products SET last_check = CURRENT_TIMESTAMP WHERE id = ?').bind(id).run();
                 summary.push({ id, url, oldPrice, newPrice });
