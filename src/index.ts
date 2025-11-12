@@ -2,6 +2,7 @@ import { ApiException, fromHono } from "chanfana";
 import { Hono } from "hono";
 import { productsRouter } from "./endpoints/products/router";
 import { CheckProducts } from "./endpoints/products/check";
+import { DebugFetch } from "./endpoints/products/debug";
 import { runCheck } from "./services/checker";
 import { ContentfulStatusCode } from "hono/utils/http-status";
 
@@ -46,6 +47,9 @@ openapi.route("/products", productsRouter);
 
 // Register check endpoint
 openapi.get("/check", CheckProducts);
+
+// Debug endpoint to inspect HTML from URL
+app.get("/debug", DebugFetch);
 
 // Export the Hono app
 export default app;

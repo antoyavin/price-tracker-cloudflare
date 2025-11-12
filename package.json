@@ -35,6 +35,7 @@
 		"@cloudflare/vitest-pool-workers": "0.8.44",
 		"@types/node": "24.0.4",
 		"typescript": "5.8.3",
-		"wrangler": "4.21.x"
-	}
+		"wrangler": "^4.47.0"
+	},
+	"packageManager": "yarn@4.4.1+sha512.f825273d0689cc9ead3259c14998037662f1dcd06912637b21a450e8da7cfeb4b1965bbee73d16927baa1201054126bc385c6f43ff4aa705c8631d26e12460f1"
 }
