@@ -48,11 +48,11 @@ openapi.route("/products", productsRouter);
 // Register check endpoint
 openapi.get("/check", CheckProducts);
 
-// Debug endpoint to inspect HTML from URL
-app.get("/debug", DebugFetch);
-
 // Export the Hono app
 export default app;
+
+// Debug endpoint - added to app directly, not via openapi
+app.get("/debug", DebugFetch);
 
 // Scheduled handler (cron) will call runCheck. Cloudflare scheduled handler signature: (controller, env)
 export async function scheduled(controller: any, env: Env) {
